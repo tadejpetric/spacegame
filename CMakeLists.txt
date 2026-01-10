@@ -3,26 +3,30 @@ project(spacegame)
 
 set(CMAKE_CXX_STANDARD 17)
 
-# Source files
+# ImGui library
 file(GLOB IMGUI_SOURCES "external/imgui/imgui*.cpp")
+add_library(imgui STATIC ${IMGUI_SOURCES})
+target_include_directories(imgui PUBLIC external/imgui)
+
+# Source files
 set(SOURCES
     src/main.cpp
     src/geometry.cpp
     src/player.cpp
-    ${IMGUI_SOURCES}
 )
 
 add_executable(spacegame ${SOURCES})
-target_include_directories(spacegame PRIVATE src external/imgui)
+target_include_directories(spacegame PRIVATE src)
+target_link_libraries(spacegame PRIVATE imgui)
 
 # Emscripten specific settings
 if(EMSCRIPTEN)
     set_target_properties(spacegame PROPERTIES SUFFIX ".html")
     set_target_properties(spacegame PROPERTIES OUTPUT_NAME "index")
 
-    target_compile_options(spacegame PRIVATE
-        "-sUSE_SDL=2"
-    )
+    # Apply SDL2 to both targets
+    target_compile_options(imgui PRIVATE "-sUSE_SDL=2")
+    target_compile_options(spacegame PRIVATE "-sUSE_SDL=2")
 
     target_link_options(spacegame PRIVATE
         "-sUSE_SDL=2"

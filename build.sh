@@ -1,6 +1,6 @@
 #!/bin/bash
-# Clean previous build
-rm -rf build
+# Ensure build directory exists
+mkdir -p build
 
 # Configure using Emscripten CMake wrapper
 # -S . : Source directory is current directory

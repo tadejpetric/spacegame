@@ -40,3 +40,22 @@ void draw_triangle(GLuint vbo, float x, float y, float scale, float angle, float
     set_transform(program, x, y, scale / aspect, scale, angle);
     glDrawArrays(GL_TRIANGLES, 0, 3);
 }
+
+void draw_line(GLuint vbo, float x1, float y1, float x2, float y2, float r, float g, float b, GLuint program, float aspect) {
+    float dx = x2 - x1;
+    float dy = y2 - y1;
+    float len = sqrt(dx * dx + dy * dy);
+    float angle = atan2(dy, dx);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    GLint posAttrib = glGetAttribLocation(program, "position");
+    glEnableVertexAttribArray(posAttrib);
+    glVertexAttribPointer(posAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+    GLint colorUniform = glGetUniformLocation(program, "color");
+    glUniform4f(colorUniform, r, g, b, 1.0f);
+
+    set_transform(program, x1, y1, len, 1.0f, angle);
+    glLineWidth(2.0f);
+    glDrawArrays(GL_LINES, 0, 2);
+}
