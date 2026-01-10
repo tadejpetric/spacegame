@@ -1,6 +1,7 @@
-*.html
-*.js
-*.wasm
-
+*index.html
+index.js
+index.wasm
+index.data
+build/
 .vscode/
 external/

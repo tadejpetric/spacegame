@@ -4,21 +4,45 @@
 #include <cmath>
 #include <vector>
 #include <iostream>
+#include <random>
 
 #include "imgui.h"
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl3.h"
 
+#include "geometry.h"
+#include "player.h"
+
+// Constants
+const int SCREEN_WIDTH = 800;
+const int SCREEN_HEIGHT = 600;
+
+// Structures
+struct Planet {
+    float x, y;
+    float radius;
+    float r, g, b;
+};
+
+struct GameState {
+    Player player;
+    std::vector<Planet> planets;
+    bool keys[SDL_NUM_SCANCODES] = {false};
+} g_state;
+
 // Global variables
 SDL_Window* window;
 SDL_GLContext context;
 GLuint program;
-GLuint vbo;
+GLuint triangleVbo;
+GLuint circleVbo;
 
 const char* vertex_shader_source = 
     "attribute vec2 position;\n"
+    "uniform mat3 transform;\n"
     "void main() {\n"
-    "   gl_Position = vec4(position, 0.0, 1.0);\n"
+    "   vec3 pos = transform * vec3(position, 1.0);\n"
+    "   gl_Position = vec4(pos.xy, 0.0, 1.0);\n"
     "}\n";
 
 const char* fragment_shader_source = 
@@ -35,7 +59,6 @@ GLuint compile_shader(GLenum type, const char* source) {
     return shader;
 }
 
-// This function runs every frame (simulating a game loop)
 void main_loop() {
     // Poll events
     SDL_Event event;
@@ -45,89 +68,76 @@ void main_loop() {
             emscripten_cancel_main_loop();
             return;
         }
+        if (event.type == SDL_KEYDOWN) {
+            if (event.key.keysym.scancode < SDL_NUM_SCANCODES)
+                g_state.keys[event.key.keysym.scancode] = true;
+        }
+        if (event.type == SDL_KEYUP) {
+            if (event.key.keysym.scancode < SDL_NUM_SCANCODES)
+                g_state.keys[event.key.keysym.scancode] = false;
+        }
     }
+
+    // Update Player logic
+    update_player(g_state.player, g_state.keys);
 
     // Start the Dear ImGui frame
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
-    // Show a simple window
     {
-        static float f = 0.0f;
-        static int counter = 0;
-        ImGui::Begin("Hello, world!");
-        ImGui::Text("This is some useful text.");
-        ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
-        if (ImGui::Button("Button"))
-            counter++;
-        ImGui::SameLine();
-        ImGui::Text("counter = %d", counter);
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        ImGui::Begin("Controls");
+        ImGui::Text("Arrows to move");
+        ImGui::Text("Pos: %.2f, %.2f", g_state.player.x, g_state.player.y);
         ImGui::End();
     }
 
     // Rendering
     ImGui::Render();
 
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClearColor(0.05f, 0.05f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glUseProgram(program);
-    
-    GLint posAttrib = glGetAttribLocation(program, "position");
-    glEnableVertexAttribArray(posAttrib);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glVertexAttribPointer(posAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
-    GLint colorUniform = glGetUniformLocation(program, "color");
+    float camX = g_state.player.x;
+    float camY = g_state.player.y;
+    float aspect = (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT;
 
-    // Draw Triangle
-    glUniform4f(colorUniform, 1.0f, 0.0f, 0.0f, 1.0f); // Red
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    // Draw Planets
+    for (const auto& p : g_state.planets) {
+        float screenX = (p.x - camX) / aspect;
+        float screenY = (p.y - camY);
+        draw_disc(circleVbo, screenX, screenY, p.radius, p.r, p.g, p.b, program, aspect);
+    }
 
-    // Draw Circle (using the vertices starting at index 3)
-    glUniform4f(colorUniform, 0.0f, 0.0f, 1.0f, 1.0f); // Blue
-    glDrawArrays(GL_TRIANGLE_FAN, 3, 32);
+    // Draw Player (Triangle) - always at center
+    draw_triangle(triangleVbo, 0.0f, 0.0f, 0.05f, g_state.player.angle, 1.0f, 1.0f, 1.0f, program, aspect);
 
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
     SDL_GL_SwapWindow(window);
 }
 
 int main() {
-    // Initialize SDL
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        return -1;
-    }
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) return -1;
 
-    // Create the browser window (Canvas)
-    // We request an OpenGL ES 2.0 context (compatible with WebGL 1)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
-    window = SDL_CreateWindow("Wasm Demo", 
+    window = SDL_CreateWindow("Space Game", 
                               SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
-                              800, 600, 
+                              SCREEN_WIDTH, SCREEN_HEIGHT, 
                               SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
 
     context = SDL_GL_CreateContext(window);
 
-    // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-
-    // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-
-    // Setup Platform/Renderer backends
     ImGui_ImplSDL2_InitForOpenGL(window, context);
     ImGui_ImplOpenGL3_Init("#version 100");
 
-    // Compile Shaders
     GLuint vs = compile_shader(GL_VERTEX_SHADER, vertex_shader_source);
     GLuint fs = compile_shader(GL_FRAGMENT_SHADER, fragment_shader_source);
     program = glCreateProgram();
@@ -135,33 +145,42 @@ int main() {
     glAttachShader(program, fs);
     glLinkProgram(program);
 
-    // Prepare Geometry
-    std::vector<float> vertices;
-    
-    // Triangle (top-leftish)
-    vertices.push_back(-0.5f); vertices.push_back(0.5f);
-    vertices.push_back(-0.8f); vertices.push_back(-0.5f);
-    vertices.push_back(-0.2f); vertices.push_back(-0.5f);
+    // Geometry - Triangle (pointing right at 0 degrees)
+    float triangle_verts[] = {
+         1.0f,  0.0f,
+        -0.6f,  0.6f,
+        -0.6f, -0.6f
+    };
+    glGenBuffers(1, &triangleVbo);
+    glBindBuffer(GL_ARRAY_BUFFER, triangleVbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_verts), triangle_verts, GL_STATIC_DRAW);
 
-    // Circle (bottom-rightish)
-    float centerX = 0.5f;
-    float centerY = -0.2f;
-    float radius = 0.3f;
-    int segments = 30;
-    vertices.push_back(centerX); vertices.push_back(centerY); // Center
-    for(int i = 0; i <= segments; i++) {
-        float angle = 2.0f * M_PI * float(i) / float(segments);
-        vertices.push_back(centerX + cos(angle) * radius);
-        vertices.push_back(centerY + sin(angle) * radius);
+    // Geometry - Circle
+    std::vector<float> circle_verts;
+    circle_verts.push_back(0.0f); circle_verts.push_back(0.0f);
+    for(int i = 0; i <= 30; i++) {
+        float angle = 2.0f * M_PI * float(i) / 30.0f;
+        circle_verts.push_back(cos(angle));
+        circle_verts.push_back(sin(angle));
+    }
+    glGenBuffers(1, &circleVbo);
+    glBindBuffer(GL_ARRAY_BUFFER, circleVbo);
+    glBufferData(GL_ARRAY_BUFFER, circle_verts.size() * sizeof(float), circle_verts.data(), GL_STATIC_DRAW);
+
+    // Initialize Planets
+    std::mt19937 rng(1337);
+    std::uniform_real_distribution<float> pos_dist(-5.0f, 5.0f);
+    std::uniform_real_distribution<float> size_dist(0.1f, 0.4f);
+    std::uniform_real_distribution<float> col_dist(0.3f, 1.0f);
+
+    for(int i = 0; i < 20; ++i) {
+        g_state.planets.push_back({
+            pos_dist(rng), pos_dist(rng),
+            size_dist(rng),
+            col_dist(rng), col_dist(rng), col_dist(rng)
+        });
     }
 
-    glGenBuffers(1, &vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-
-    // Tell Emscripten to use our main_loop function
-    // 0 = 0 fps (use browser's requestAnimationFrame), 1 = simulate infinite loop
     emscripten_set_main_loop(main_loop, 0, 1);
-
     return 0;
 }
