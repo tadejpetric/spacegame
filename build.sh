@@ -1,5 +1,6 @@
 #!/bin/bash
-# Ensure build directory exists
+# Ensure build directory exists and is clean
+rm -rf build
 mkdir -p build
 
 # Configure using Emscripten CMake wrapper
@@ -13,3 +14,6 @@ cmake --build build
 
 # Copy artifacts to root
 cp build/index.html build/index.js build/index.wasm .
+
+# Start server
+python -m http.server

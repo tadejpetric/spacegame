@@ -13,6 +13,7 @@ set(SOURCES
     src/main.cpp
     src/geometry.cpp
     src/player.cpp
+    src/game_loop.cpp
 )
 
 add_executable(spacegame ${SOURCES})
@@ -24,13 +25,17 @@ if(EMSCRIPTEN)
     set_target_properties(spacegame PROPERTIES SUFFIX ".html")
     set_target_properties(spacegame PROPERTIES OUTPUT_NAME "index")
 
-    # Apply SDL2 to both targets
-    target_compile_options(imgui PRIVATE "-sUSE_SDL=2")
+    # Emscripten handles SDL2 via -sUSE_SDL=2
+    target_compile_options(imgui PUBLIC "-sUSE_SDL=2")
     target_compile_options(spacegame PRIVATE "-sUSE_SDL=2")
-
+    
     target_link_options(spacegame PRIVATE
         "-sUSE_SDL=2"
         "-sFULL_ES2=1"
         "--shell-file" "${CMAKE_SOURCE_DIR}/shell.html"
     )
+else()
+    find_package(SDL2 REQUIRED)
+    target_link_libraries(spacegame PRIVATE SDL2::SDL2)
+    target_link_libraries(imgui PUBLIC SDL2::SDL2)
 endif()
