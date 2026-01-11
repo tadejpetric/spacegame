@@ -3,6 +3,8 @@
 
 #include <string>
 #include <vector>
+#include <optional>
+#include <functional>
 
 enum class CardType {
     SHIELD,
@@ -10,24 +12,46 @@ enum class CardType {
     DRONE
 };
 
-struct Card {
-    std::string name;
-    int hp;
-    int max_hp;
-    int dmg;
-    CardType type;
-};
-
 enum class BattleSide {
     PLAYER,
     OPPONENT
 };
 
+enum class CardKind {
+    NORMAL,
+    SPECIAL,
+    IMMEDIATE,
+    FIELD_EFFECT
+};
+
+struct CardState {
+    int times_used = 0;
+    int cooldown = 0;
+    bool skip_this_turn = false;
+};
+
+using CardEffect = std::function<void(struct BattleState&, BattleSide, int row, int col)>;
+
+struct Card {
+    std::string name;
+    int hp;
+    int max_hp;
+    int dmg;
+    int base_dmg;
+    CardType type;
+    CardKind kind = CardKind::NORMAL;
+    CardEffect effect;
+    std::optional<std::string> effect_description;
+    CardState state;
+};
+
 struct SideState {
     int hp = 10000;
+    double damage_multiplier = 1.0;
     std::vector<Card> deck;
     std::vector<Card> hand;
     std::vector<Card> field[2][6];
+    std::vector<Card> immediate_queue;
     int ship_last_damage = 0;
     int slot_last_damage[2][6] = {};
 };
@@ -38,6 +62,7 @@ struct BattleState {
 
     bool is_player_turn = true;
     bool battle_animating = false;
+    bool skip_attack_phase = false;
     int selected_card_hand_idx = -1;
 
     // Animation state

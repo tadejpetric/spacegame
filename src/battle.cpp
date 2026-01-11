@@ -8,11 +8,16 @@
 #include <algorithm>
 #include <random>
 #include <ctime>
+#include <cmath>
 
 // Internal battle helper
-void shuffle_deck(std::vector<Card>& deck) {
+static std::mt19937& battle_rng() {
     static std::mt19937 rng(time(0));
-    std::shuffle(deck.begin(), deck.end(), rng);
+    return rng;
+}
+
+void shuffle_deck(std::vector<Card>& deck) {
+    std::shuffle(deck.begin(), deck.end(), battle_rng());
 }
 
 SideState& get_side_state(BattleState& state, BattleSide side) {
@@ -21,6 +26,24 @@ SideState& get_side_state(BattleState& state, BattleSide side) {
 
 const SideState& get_side_state(const BattleState& state, BattleSide side) {
     return (side == BattleSide::PLAYER) ? state.player : state.opponent;
+}
+
+static Card make_empty_card() {
+    return {"", 0, 0, 0, 0, CardType::DRONE, CardKind::NORMAL, {}, std::nullopt, {}};
+}
+
+static Card make_card(const std::string& name, CardType type, CardKind kind, int hp, int dmg, CardEffect effect = {}, std::optional<std::string> desc = std::nullopt) {
+    return {name, hp, hp, dmg, dmg, type, kind, effect, desc, {}};
+}
+
+static const char* card_kind_label(CardKind kind) {
+    switch (kind) {
+        case CardKind::NORMAL: return "Normal";
+        case CardKind::SPECIAL: return "Special";
+        case CardKind::IMMEDIATE: return "Immediate";
+        case CardKind::FIELD_EFFECT: return "Field";
+    }
+    return "Normal";
 }
 
 static BattleSide opposite_side(BattleSide side) {
@@ -92,6 +115,42 @@ static bool center_columns_clear(const std::vector<Card> (&field)[2][6], int sta
     return !column_has_card(field, 3);
 }
 
+static void cleanup_destroyed_cards();
+
+static int effective_damage(const Card& card, const SideState& side) {
+    return static_cast<int>(std::lround(card.dmg * side.damage_multiplier));
+}
+
+static void deal_damage_to_slot(SideState& side, int row, int col, int dmg) {
+    if (dmg <= 0) return;
+    Card& target = side.field[row][col][0];
+    if (target.hp <= 0) return;
+    int applied = std::min(dmg, target.hp);
+    target.hp -= applied;
+    side.slot_last_damage[row][col] += applied;
+}
+
+static void deal_damage_to_ship(SideState& side, int dmg) {
+    if (dmg <= 0) return;
+    int applied = std::min(dmg, side.hp);
+    side.hp -= applied;
+    side.ship_last_damage += applied;
+}
+
+static void heal_slot(SideState& side, int row, int col, int amount) {
+    Card& target = side.field[row][col][0];
+    if (target.hp <= 0 || amount <= 0) return;
+    target.hp = std::min(target.max_hp, target.hp + amount);
+}
+
+static void apply_card_effect(BattleState& state, BattleSide side, Card& card, int row, int col) {
+    if (card.effect) {
+        card.state.times_used++;
+        card.effect(state, side, row, col);
+        cleanup_destroyed_cards();
+    }
+}
+
 // Screen-space helpers for animation
 static ImVec2 g_player_slot_centers[2][6];
 static ImVec2 g_opponent_slot_centers[2][6];
@@ -109,7 +168,7 @@ static void cleanup_destroyed_cards_for_side(SideState& side) {
         for (int c = 0; c < 6; ++c) {
             Card& card = side.field[r][c][0];
             if (card.hp <= 0 && card.name != "") {
-                card = {"", 0, 0, 0, CardType::DRONE};
+                card = make_empty_card();
             }
         }
     }
@@ -127,10 +186,21 @@ static void apply_attacks_for_side(BattleSide attacker_side, int c) {
     auto& defender_field = defender.field;
 
     for (int r = 0; r < 2; r++) {
+        if (g_battle.skip_attack_phase) return;
+
         Card& attacker_card = attacker_field[r][c][0];
         if (attacker_card.hp <= 0) continue;
 
-        int remaining_dmg = attacker_card.dmg;
+        apply_card_effect(g_battle, attacker_side, attacker_card, r, c);
+        if (attacker_card.hp <= 0) continue;
+        if (attacker_card.state.skip_this_turn) {
+            attacker_card.state.skip_this_turn = false;
+            continue;
+        }
+
+        int remaining_dmg = effective_damage(attacker_card, attacker);
+        if (remaining_dmg <= 0) continue;
+
         int target_col = find_target_column(defender_field, c);
 
         if (target_col >= 0) {
@@ -157,10 +227,205 @@ static void apply_attacks_for_column(int c) {
     cleanup_destroyed_cards();
 }
 
-Card create_card(const std::string& name, CardType type) {
-    if (type == CardType::SHIELD) return {name, 500, 500, 50, type};
-    if (type == CardType::TURRET) return {name, 200, 200, 200, type};
-    return {name, 300, 300, 100, type}; // Drone
+// --- Card effect helpers ----------------------------------------------------
+
+static void deal_damage_to_all_slots(SideState& side, int amount) {
+    for (int r = 0; r < 2; ++r) {
+        for (int c = 0; c < 6; ++c) {
+            deal_damage_to_slot(side, r, c, amount);
+        }
+    }
+}
+
+static void heal_all_slots(SideState& side, int amount) {
+    for (int r = 0; r < 2; ++r) {
+        for (int c = 0; c < 6; ++c) {
+            heal_slot(side, r, c, amount);
+        }
+    }
+}
+
+static void draw_cards(SideState& side, int count) {
+    for (int i = 0; i < count && !side.deck.empty(); ++i) {
+        side.hand.push_back(side.deck.back());
+        side.deck.pop_back();
+    }
+}
+
+// --- Deck construction ------------------------------------------------------
+
+static void add_repeated(std::vector<Card>& deck, const Card& card, int copies) {
+    for (int i = 0; i < copies; ++i) deck.push_back(card);
+}
+
+static void fill_deck(std::vector<Card>& deck) {
+    deck.clear();
+
+    Card shield = make_card("Shield", CardType::SHIELD, CardKind::NORMAL, 500, 50);
+    Card turret = make_card("Turret", CardType::TURRET, CardKind::NORMAL, 200, 200);
+    Card drone  = make_card("Drone",  CardType::DRONE,  CardKind::NORMAL, 300, 100);
+    Card mechanic = make_card(
+        "Mechanic",
+        CardType::DRONE,
+        CardKind::SPECIAL,
+        320,
+        80,
+        [](BattleState& st, BattleSide side, int, int) {
+            SideState& self = get_side_state(st, side);
+            heal_all_slots(self, 100);
+        },
+        "Heal all friendly units by 100 HP"
+    );
+    Card bombard = make_card(
+        "Bombard",
+        CardType::TURRET,
+        CardKind::SPECIAL,
+        220,
+        150,
+        [](BattleState& st, BattleSide side, int, int) {
+            SideState& enemy = get_side_state(st, opposite_side(side));
+            deal_damage_to_all_slots(enemy, 100);
+        },
+        "Damage all enemy units by 100 HP"
+    );
+    Card alternator = make_card(
+        "Alternator",
+        CardType::TURRET,
+        CardKind::SPECIAL,
+        240,
+        220,
+        [](BattleState& st, BattleSide side, int row, int col) {
+            SideState& self = get_side_state(st, side);
+            Card& card = self.field[row][col][0];
+            // times_used incremented before calling
+            if ((card.state.times_used % 2) == 0) {
+                card.state.skip_this_turn = true; // fires every other turn
+            }
+        },
+        "Fires only every other turn"
+    );
+    Card overheat = make_card(
+        "Overheat",
+        CardType::DRONE,
+        CardKind::SPECIAL,
+        260,
+        180,
+        [](BattleState& st, BattleSide side, int row, int col) {
+            SideState& self = get_side_state(st, side);
+            Card& card = self.field[row][col][0];
+            if (card.state.times_used >= 3) {
+                card.hp = 0; // destroy after 3 uses
+            }
+        },
+        "Self-destructs after attacking 3 times"
+    );
+    Card greed = make_card(
+        "Greed",
+        CardType::DRONE,
+        CardKind::IMMEDIATE,
+        0,
+        0,
+        [](BattleState& st, BattleSide side, int, int) {
+            draw_cards(get_side_state(st, side), 2);
+        },
+        "Draw 2 more cards"
+    );
+    Card bomb = make_card(
+        "Bomb",
+        CardType::DRONE,
+        CardKind::IMMEDIATE,
+        0,
+        0,
+        [](BattleState& st, BattleSide side, int, int) {
+            SideState& enemy = get_side_state(st, opposite_side(side));
+            deal_damage_to_all_slots(enemy, 100);
+            deal_damage_to_ship(enemy, 50);
+        },
+        "Deal 100 to all enemy units and 50 to the enemy ship"
+    );
+    Card ceasefire = make_card(
+        "Ceasefire",
+        CardType::SHIELD,
+        CardKind::IMMEDIATE,
+        0,
+        0,
+        [](BattleState& st, BattleSide, int, int) {
+            st.skip_attack_phase = true;
+        },
+        "End the attack phase for this turn"
+    );
+    Card battle_drills = make_card(
+        "Battle Drills",
+        CardType::TURRET,
+        CardKind::FIELD_EFFECT,
+        0,
+        0,
+        [](BattleState& st, BattleSide side, int, int) {
+            get_side_state(st, side).damage_multiplier *= 2.0;
+        },
+        "Double your cards' damage"
+    );
+    Card reinforced_hull = make_card(
+        "Reinforced Hull",
+        CardType::SHIELD,
+        CardKind::FIELD_EFFECT,
+        0,
+        0,
+        [](BattleState& st, BattleSide side, int, int) {
+            get_side_state(st, side).hp += 1000;
+        },
+        "Increase ship HP by 1000"
+    );
+
+    add_repeated(deck, shield, 4);
+    add_repeated(deck, turret, 4);
+    add_repeated(deck, drone, 4);
+    add_repeated(deck, mechanic, 2);
+    add_repeated(deck, bombard, 2);
+    add_repeated(deck, alternator, 2);
+    add_repeated(deck, overheat, 2);
+    add_repeated(deck, greed, 2);
+    add_repeated(deck, bomb, 2);
+    add_repeated(deck, ceasefire, 1);
+    add_repeated(deck, battle_drills, 1);
+    add_repeated(deck, reinforced_hull, 1);
+
+    shuffle_deck(deck);
+}
+
+static void apply_field_effect_cards(BattleState& st, BattleSide side) {
+    SideState& ss = get_side_state(st, side);
+    std::vector<Card> remaining;
+    for (Card& c : ss.deck) {
+        if (c.kind == CardKind::FIELD_EFFECT && c.effect) {
+            Card copy = c;
+            apply_card_effect(st, side, copy, -1, -1);
+        } else {
+            remaining.push_back(c);
+        }
+    }
+    ss.deck = std::move(remaining);
+    shuffle_deck(ss.deck);
+}
+
+static void apply_immediate_effect_queues(BattleState& st) {
+    auto& p_queue = st.player.immediate_queue;
+    auto& o_queue = st.opponent.immediate_queue;
+    while (!p_queue.empty() || !o_queue.empty()) {
+        std::vector<BattleSide> options;
+        if (!p_queue.empty()) options.push_back(BattleSide::PLAYER);
+        if (!o_queue.empty()) options.push_back(BattleSide::OPPONENT);
+
+        BattleSide chosen = options.size() == 1
+            ? options[0]
+            : options[std::uniform_int_distribution<int>(0, static_cast<int>(options.size()) - 1)(battle_rng())];
+
+        auto& queue = (chosen == BattleSide::PLAYER) ? p_queue : o_queue;
+        Card card = queue.front();
+        queue.erase(queue.begin());
+        apply_card_effect(st, chosen, card, -1, -1);
+        if (st.player.hp <= 0 || st.opponent.hp <= 0) break;
+    }
 }
 
 static bool process_battle_events() {
@@ -244,11 +509,15 @@ static void render_player_field() {
                     ImGui::Button((card.name + "\nHP:" + std::to_string(card.hp) + "\nDMG:" + std::to_string(card.dmg) + "##p" + std::to_string(r) + std::to_string(c)).c_str(), ImVec2(80, 100));
                 } else {
                     if (g_battle.selected_card_hand_idx != -1 && !g_battle.battle_animating) {
+                        Card& hand_card = player.hand[g_battle.selected_card_hand_idx];
+                        bool placeable = hand_card.kind != CardKind::IMMEDIATE && hand_card.hp > 0;
+                        if (!placeable) ImGui::BeginDisabled();
                         if (ImGui::Button(("Place Here##p" + std::to_string(r) + std::to_string(c)).c_str(), ImVec2(80, 100))) {
                             player.field[r][c][0] = player.hand[g_battle.selected_card_hand_idx];
                             player.hand.erase(player.hand.begin() + g_battle.selected_card_hand_idx);
                             g_battle.selected_card_hand_idx = -1;
                         }
+                        if (!placeable) ImGui::EndDisabled();
                     } else {
                         ImGui::Button(("Empty##p" + std::to_string(r) + std::to_string(c)).c_str(), ImVec2(80, 100));
                     }
@@ -279,9 +548,34 @@ static void render_player_hand() {
         bool selected = (g_battle.selected_card_hand_idx == (int)i);
         if (selected) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.8f, 0.2f, 1.0f));
 
-        if (ImGui::Button((card.name + "##h" + std::to_string(i)).c_str(), ImVec2(100, 140))) {
+        std::string label = card.name + "##h" + std::to_string(i);
+        if (ImGui::Button(label.c_str(), ImVec2(120, 150))) {
             if (selected) g_battle.selected_card_hand_idx = -1;
             else g_battle.selected_card_hand_idx = (int)i;
+        }
+
+        if (ImGui::IsItemHovered()) {
+            ImGui::BeginTooltip();
+            ImGui::Text("%s", card.name.c_str());
+            ImGui::Text("Type: %s", card_kind_label(card.kind));
+            ImGui::Text("HP: %d / %d", card.hp, card.max_hp);
+            ImGui::Text("DMG: %d", card.dmg);
+            if (card.effect_description) {
+                ImGui::Separator();
+                ImGui::TextWrapped("%s", card.effect_description->c_str());
+            }
+            ImGui::EndTooltip();
+        }
+
+        if (selected && card.kind == CardKind::IMMEDIATE && !g_battle.battle_animating) {
+            ImGui::SameLine();
+            if (ImGui::Button(("Activate##" + std::to_string(i)).c_str(), ImVec2(90, 30))) {
+                g_battle.player.immediate_queue.push_back(card);
+                g_battle.player.hand.erase(g_battle.player.hand.begin() + (int)i);
+                g_battle.selected_card_hand_idx = -1;
+                // reset loop after erase
+                i--;
+            }
         }
 
         if (selected) ImGui::PopStyleColor();
@@ -296,6 +590,7 @@ static void handle_end_turn_button(double now) {
     if (ImGui::Button("End Turn", ImVec2(120, 40))) {
         auto& player = g_battle.player;
         auto& opponent = g_battle.opponent;
+        g_battle.skip_attack_phase = false;
         for(int i=0; i<2; i++) {
             if(!player.deck.empty()) {
                 player.hand.push_back(player.deck.back());
@@ -306,11 +601,21 @@ static void handle_end_turn_button(double now) {
                 opponent.deck.pop_back();
             }
         }
+        // Move opponent immediate cards to queue immediately after draw
+        for (auto it = opponent.hand.begin(); it != opponent.hand.end();) {
+            if (it->kind == CardKind::IMMEDIATE) {
+                opponent.immediate_queue.push_back(*it);
+                it = opponent.hand.erase(it);
+            } else {
+                ++it;
+            }
+        }
+
         for(auto it = opponent.hand.begin(); it != opponent.hand.end(); ) {
             bool placed = false;
             for(int r=0; r<2 && !placed; r++) {
                 for(int c=0; c<6 && !placed; c++) {
-                    if (opponent.field[r][c][0].hp <= 0) {
+                    if (opponent.field[r][c][0].hp <= 0 && it->kind != CardKind::IMMEDIATE) {
                         opponent.field[r][c][0] = *it;
                         it = opponent.hand.erase(it);
                         placed = true;
@@ -321,11 +626,15 @@ static void handle_end_turn_button(double now) {
         }
 
         reset_damage_tracking(g_battle);
-        g_battle.battle_animating = true;
-        g_battle.anim_initial_wait = true;
-        g_battle.anim_step_index = -1;
-        g_battle.anim_step_start_time = now;
-        g_battle.anim_damage_applied = false;
+        apply_immediate_effect_queues(g_battle);
+        cleanup_destroyed_cards();
+        if (g_battle.player.hp > 0 && g_battle.opponent.hp > 0) {
+            g_battle.battle_animating = true;
+            g_battle.anim_initial_wait = true;
+            g_battle.anim_step_index = -1;
+            g_battle.anim_step_start_time = now;
+            g_battle.anim_damage_applied = false;
+        }
     }
     if (end_turn_disabled) ImGui::EndDisabled();
 }
@@ -475,19 +784,9 @@ static void clear_side_field(SideState& side) {
     for (int r = 0; r < 2; ++r) {
         for (int c = 0; c < 6; ++c) {
             side.field[r][c].clear();
-            side.field[r][c].push_back({"", 0, 0, 0, CardType::DRONE});
+            side.field[r][c].push_back(make_empty_card());
         }
     }
-}
-
-static void fill_deck(std::vector<Card>& deck) {
-    deck.clear();
-    for (int i = 0; i < 10; ++i) {
-        deck.push_back(create_card("Shield", CardType::SHIELD));
-        deck.push_back(create_card("Turret", CardType::TURRET));
-        deck.push_back(create_card("Drone", CardType::DRONE));
-    }
-    shuffle_deck(deck);
 }
 
 static void initial_draw(std::vector<Card>& deck, std::vector<Card>& hand) {
@@ -507,16 +806,28 @@ void init_battle(BattleState& state) {
 
     fill_deck(state.player.deck);
     fill_deck(state.opponent.deck);
+    apply_field_effect_cards(state, BattleSide::PLAYER);
+    apply_field_effect_cards(state, BattleSide::OPPONENT);
 
     state.player.hand.clear();
     state.opponent.hand.clear();
     initial_draw(state.player.deck, state.player.hand);
     initial_draw(state.opponent.deck, state.opponent.hand);
+    // AI auto-activates immediate cards as soon as they are drawn
+    for (size_t i = 0; i < state.opponent.hand.size();) {
+        if (state.opponent.hand[i].kind == CardKind::IMMEDIATE) {
+            state.opponent.immediate_queue.push_back(state.opponent.hand[i]);
+            state.opponent.hand.erase(state.opponent.hand.begin() + (int)i);
+        } else {
+            ++i;
+        }
+    }
 
     state.selected_card_hand_idx = -1;
     state.is_player_turn = true;
     state.battle_animating = false;
     state.anim_step_index = -1;
+    state.skip_attack_phase = false;
     reset_damage_tracking(state);
 }
 
