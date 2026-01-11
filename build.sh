@@ -1,6 +1,5 @@
 #!/bin/bash
-# Ensure build directory exists and is clean
-rm -rf build
+# Ensure build directory exists
 mkdir -p build
 
 # Configure using Emscripten CMake wrapper

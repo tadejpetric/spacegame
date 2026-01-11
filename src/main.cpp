@@ -10,7 +10,16 @@
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl3.h"
 
-#include "game_loop.h"
+#include "overworld.h"
+
+enum class GameMode {
+    OVERWORLD,
+    BATTLE
+};
+
+GameMode get_mode() {
+    return GameMode::OVERWORLD;
+}
 
 // Constants
 const float TILE_SIZE = 1.0f;
@@ -49,9 +58,16 @@ GLuint compile_shader(GLenum type, const char* source) {
 }
 
 void main_loop() {
-    handle_events();
-    render_ui();
-    render_game();
+    GameMode mode = get_mode();
+    
+    switch (mode) {
+        case GameMode::OVERWORLD:
+            overworld_loop();
+            break;
+        case GameMode::BATTLE:
+            // battle_loop();
+            break;
+    }
 
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     SDL_GL_SwapWindow(window);

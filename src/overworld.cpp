@@ -1,4 +1,4 @@
-#include "game_loop.h"
+#include "overworld.h"
 #include <emscripten.h>
 #include <cmath>
 #include <random>
@@ -6,6 +6,12 @@
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl3.h"
 #include "geometry.h"
+
+void overworld_loop() {
+    handle_events();
+    render_ui();
+    render_game();
+}
 
 void handle_events() {
     SDL_Event event;

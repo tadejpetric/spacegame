@@ -1,5 +1,5 @@
-#ifndef GAME_LOOP_H
-#define GAME_LOOP_H
+#ifndef OVERWORLD_H
+#define OVERWORLD_H
 
 #include <SDL.h>
 #include <SDL_opengles2.h>
@@ -39,10 +39,9 @@ extern GLuint triangleVbo;
 extern GLuint circleVbo;
 extern GLuint lineVbo;
 
+void overworld_loop();
 void handle_events();
-void draw_grid(float camX, float camY, float aspect, float zoom);
-void draw_planets(float camX, float camY, float aspect, float zoom);
 void render_ui();
 void render_game();
 
-#endif // GAME_LOOP_H
+#endif // OVERWORLD_H

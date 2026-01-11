@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(spacegame)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 
 # ImGui library
 file(GLOB IMGUI_SOURCES "external/imgui/imgui*.cpp")
@@ -13,7 +13,7 @@ set(SOURCES
     src/main.cpp
     src/geometry.cpp
     src/player.cpp
-    src/game_loop.cpp
+    src/overworld.cpp
 )
 
 add_executable(spacegame ${SOURCES})
