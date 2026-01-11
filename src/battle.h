@@ -33,6 +33,11 @@ struct BattleState {
     bool is_player_turn = true;
     bool battle_animating = false;
     int selected_card_hand_idx = -1;
+
+    int player_ship_last_damage = 0;
+    int opponent_ship_last_damage = 0;
+    int player_slot_last_damage[2][6] = {};
+    int opponent_slot_last_damage[2][6] = {};
 };
 
 void battle_loop();

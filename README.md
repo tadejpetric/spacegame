@@ -55,8 +55,6 @@ At the end of the turn, battle phase begins. The attacks are simultaneous for bo
 from the side of the board towards the center. First the side columns attack (both for you and opponent).
 The damage is computed after the attacks and cards are destroyed accordingly. Then the next column attacks, and so on. The order of battle is such: 123321
 
-
-
 There are different types of cards:
 - guns (high attack, low defence)
 - shields (low attack, high defence)

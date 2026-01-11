@@ -14,6 +14,55 @@ void shuffle_deck(std::vector<Card>& deck) {
     std::shuffle(deck.begin(), deck.end(), rng);
 }
 
+static void reset_damage_tracking(BattleState& state) {
+    state.player_ship_last_damage = 0;
+    state.opponent_ship_last_damage = 0;
+    for (int r = 0; r < 2; ++r) {
+        for (int c = 0; c < 6; ++c) {
+            state.player_slot_last_damage[r][c] = 0;
+            state.opponent_slot_last_damage[r][c] = 0;
+        }
+    }
+}
+
+static void draw_damage_marker(int damage) {
+    if (damage <= 0) return;
+    std::string text = "-" + std::to_string(damage);
+    ImVec2 rect_min = ImGui::GetItemRectMin();
+    ImVec2 rect_max = ImGui::GetItemRectMax();
+    ImVec2 text_size = ImGui::CalcTextSize(text.c_str());
+    ImVec2 pos(
+        rect_min.x + ((rect_max.x - rect_min.x) - text_size.x) * 0.5f,
+        rect_min.y - text_size.y - 2.0f
+    );
+    ImGui::GetWindowDrawList()->AddText(pos, IM_COL32(255, 64, 64, 255), text.c_str());
+}
+
+static bool column_has_card(const std::vector<Card> (&field)[2][6], int col) {
+    for (int r = 0; r < 2; ++r) {
+        if (field[r][col][0].hp > 0) return true;
+    }
+    return false;
+}
+
+static int find_target_column(const std::vector<Card> (&field)[2][6], int start_col) {
+    if (column_has_card(field, start_col)) return start_col;
+    if (start_col <= 2) {
+        for (int col = start_col + 1; col <= 3; ++col) {
+            if (column_has_card(field, col)) return col;
+        }
+    } else {
+        for (int col = start_col - 1; col >= 2; --col) {
+            if (column_has_card(field, col)) return col;
+        }
+    }
+    return -1;
+}
+
+static bool center_columns_clear(const std::vector<Card> (&field)[2][6]) {
+    return !column_has_card(field, 2) && !column_has_card(field, 3);
+}
+
 Card create_card(const std::string& name, CardType type) {
     if (type == CardType::SHIELD) return {name, 500, 500, 50, type};
     if (type == CardType::TURRET) return {name, 200, 200, 200, type};
@@ -36,6 +85,7 @@ void init_battle(BattleState& state) {
         }
     }
     state.selected_card_hand_idx = -1;
+    reset_damage_tracking(state);
 
     // Fill decks
     for(int i=0; i<10; i++) {
@@ -88,7 +138,15 @@ void battle_loop() {
 
     // HP Bars
     ImGui::Text("Opponent HP: %d", g_battle.opponent_hp);
+    if (g_battle.opponent_ship_last_damage > 0) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(0.9f, 0.2f, 0.2f, 1.0f), "-%d", g_battle.opponent_ship_last_damage);
+    }
     ImGui::Text("Player HP: %d", g_battle.player_hp);
+    if (g_battle.player_ship_last_damage > 0) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(0.9f, 0.2f, 0.2f, 1.0f), "-%d", g_battle.player_ship_last_damage);
+    }
 
     ImGui::Separator();
 
@@ -105,6 +163,7 @@ void battle_loop() {
                 } else {
                     ImGui::Button("Empty", ImVec2(80, 100));
                 }
+                draw_damage_marker(g_battle.opponent_slot_last_damage[r][c]);
             }
         }
         ImGui::EndTable();
@@ -133,6 +192,7 @@ void battle_loop() {
                         ImGui::Button(("Empty##p" + std::to_string(r) + std::to_string(c)).c_str(), ImVec2(80, 100));
                     }
                 }
+                draw_damage_marker(g_battle.player_slot_last_damage[r][c]);
             }
         }
         ImGui::EndTable();
@@ -185,6 +245,7 @@ void battle_loop() {
         }
 
         // --- Battle Phase ---
+        reset_damage_tracking(g_battle);
         // Order: 123321 (side columns towards center)
         int attack_order[] = {0, 5, 1, 4, 2, 3};
         
@@ -194,18 +255,21 @@ void battle_loop() {
                 Card& p_card = g_battle.player_field[r][c][0];
                 if (p_card.hp > 0) {
                     int remaining_dmg = p_card.dmg;
-                    // Target logic: front row then back row in same column
-                    for (int orow = 0; orow < 2 && remaining_dmg > 0; orow++) {
-                        Card& o_card = g_battle.opponent_field[orow][c][0];
-                        if (o_card.hp > 0) {
-                            int dmg_to_deal = std::min(remaining_dmg, o_card.hp);
-                            o_card.hp -= dmg_to_deal;
-                            remaining_dmg -= dmg_to_deal;
+                    int target_col = find_target_column(g_battle.opponent_field, c);
+                    if (target_col >= 0) {
+                        for (int orow = 0; orow < 2 && remaining_dmg > 0; ++orow) {
+                            Card& o_card = g_battle.opponent_field[orow][target_col][0];
+                            if (o_card.hp > 0) {
+                                int dmg_to_deal = std::min(remaining_dmg, o_card.hp);
+                                o_card.hp -= dmg_to_deal;
+                                remaining_dmg -= dmg_to_deal;
+                                g_battle.opponent_slot_last_damage[orow][target_col] += dmg_to_deal;
+                            }
                         }
-                    }
-                    // If damage remains, hit the opponent spaceship directly (only on center columns 2 & 3)
-                    if (remaining_dmg > 0 && (c == 2 || c == 3)) {
+                    } else if (remaining_dmg > 0 && center_columns_clear(g_battle.opponent_field)) {
                         g_battle.opponent_hp -= remaining_dmg;
+                        g_battle.opponent_ship_last_damage += remaining_dmg;
+                        remaining_dmg = 0;
                     }
                 }
             }
@@ -215,18 +279,21 @@ void battle_loop() {
                 Card& o_card = g_battle.opponent_field[r][c][0];
                 if (o_card.hp > 0) {
                     int remaining_dmg = o_card.dmg;
-                    // Target logic: front row then back row in same column
-                    for (int prow = 0; prow < 2 && remaining_dmg > 0; prow++) {
-                        Card& p_card = g_battle.player_field[prow][c][0];
-                        if (p_card.hp > 0) {
-                            int dmg_to_deal = std::min(remaining_dmg, p_card.hp);
-                            p_card.hp -= dmg_to_deal;
-                            remaining_dmg -= dmg_to_deal;
+                    int target_col = find_target_column(g_battle.player_field, c);
+                    if (target_col >= 0) {
+                        for (int prow = 0; prow < 2 && remaining_dmg > 0; ++prow) {
+                            Card& p_card = g_battle.player_field[prow][target_col][0];
+                            if (p_card.hp > 0) {
+                                int dmg_to_deal = std::min(remaining_dmg, p_card.hp);
+                                p_card.hp -= dmg_to_deal;
+                                remaining_dmg -= dmg_to_deal;
+                                g_battle.player_slot_last_damage[prow][target_col] += dmg_to_deal;
+                            }
                         }
-                    }
-                    // If damage remains, hit the player spaceship directly (only on center columns 2 & 3)
-                    if (remaining_dmg > 0 && (c == 2 || c == 3)) {
+                    } else if (remaining_dmg > 0 && center_columns_clear(g_battle.player_field)) {
                         g_battle.player_hp -= remaining_dmg;
+                        g_battle.player_ship_last_damage += remaining_dmg;
+                        remaining_dmg = 0;
                     }
                 }
             }
