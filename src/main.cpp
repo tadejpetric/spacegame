@@ -30,6 +30,7 @@ SDL_GLContext context;
 GLuint program;
 GLuint triangleVbo;
 GLuint circleVbo;
+GLuint squareVbo;
 GLuint lineVbo;
 
 const char* vertex_shader_source = 
@@ -126,6 +127,17 @@ int main() {
     glGenBuffers(1, &lineVbo);
     glBindBuffer(GL_ARRAY_BUFFER, lineVbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(line_verts), line_verts, GL_STATIC_DRAW);
+
+    // Geometry - Square (unit size)
+    float square_verts[] = {
+        0.0f, 0.0f,
+        1.0f, 0.0f,
+        1.0f, 1.0f,
+        0.0f, 1.0f
+    };
+    glGenBuffers(1, &squareVbo);
+    glBindBuffer(GL_ARRAY_BUFFER, squareVbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(square_verts), square_verts, GL_STATIC_DRAW);
 
     // Initialize Planets (not needed for infinite grid)
     /*

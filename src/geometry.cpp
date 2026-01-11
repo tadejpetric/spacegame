@@ -59,3 +59,32 @@ void draw_line(GLuint vbo, float x1, float y1, float x2, float y2, float r, floa
     glLineWidth(2.0f);
     glDrawArrays(GL_LINES, 0, 2);
 }
+
+void draw_square(GLuint vbo,
+                 float x, float y,
+                 float size,
+                 float r, float g, float b, float alpha,
+                 GLuint program,
+                 float aspect)
+{
+    glUseProgram(program);
+
+    // Enable alpha blending (REQUIRED for transparency)
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
+    GLint posAttrib = glGetAttribLocation(program, "position");
+    glEnableVertexAttribArray(posAttrib);
+    glVertexAttribPointer(posAttrib, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+    GLint colorUniform = glGetUniformLocation(program, "color");
+    glUniform4f(colorUniform, r, g, b, alpha); // e.g. (1, 0, 0, 0.5)
+
+    set_transform(program, x, y, size / aspect, size);
+
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    glDisableVertexAttribArray(posAttrib);
+}

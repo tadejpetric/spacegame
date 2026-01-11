@@ -11,6 +11,7 @@ const float TILE_SIZE = 1.0f;
 const int GRID_VIEW_RANGE = 20;
 
 void overworld_loop() {
+
     handle_events();
     render_ui();
     render_game();
@@ -45,8 +46,8 @@ Tiles WorldMap::get_tile_at(int x, int y) {
     }
     return it->second.get_tile(local_x, local_y);
 }
-std::vector<Chunk> WorldMap::get_active_chunks(int center_x, int center_y, int range) {
-    std::vector<Chunk> active_chunks;
+std::vector<std::pair<Point, Chunk>> WorldMap::get_active_chunks(int center_x, int center_y, int range) {
+    std::vector<std::pair<Point, Chunk>> active_chunks;
     int start_chunk_x = (center_x - range) / Chunk::SIZE;
     int end_chunk_x = (center_x + range) / Chunk::SIZE;
     int start_chunk_y = (center_y - range) / Chunk::SIZE;
@@ -59,7 +60,7 @@ std::vector<Chunk> WorldMap::get_active_chunks(int center_x, int center_y, int r
                 generate_chunk(cx, cy);
                 it = chunks.find({cx, cy});
             }
-            active_chunks.push_back(it->second);
+            active_chunks.push_back({{cx, cy}, it->second});
         }
     }
     return active_chunks;
@@ -126,7 +127,7 @@ void handle_events() {
             if (moved) {
                 // Not a fan of this
                 static std::mt19937 battle_rng(time(0));
-                std::uniform_int_distribution<int> dist(1, 6);
+                std::uniform_int_distribution<int> dist(1, 100);
                 if (dist(battle_rng) == 1) {
                     start_random_battle();
                 }
@@ -205,19 +206,88 @@ void draw_planets(float camX, float camY, float aspect, float zoom) {
     }
 }
 
+
+void debug_chunks() {
+    ImGui::Begin("Active Chunks");
+    ImGui::Text("Active Chunks:");
+    auto active_chunks = g_state.world_map.get_active_chunks(
+        (int)(g_state.player.x),
+        (int)(g_state.player.y),
+        GRID_VIEW_RANGE
+    );
+    for (const auto& chunk_pair : active_chunks) {
+        const Point& coord = chunk_pair.first;
+        ImGui::Text("   Chunk (%d, %d)", coord.first, coord.second);
+    }
+    ImGui::Text("All Chunks:");
+    for (const auto& chunk_pair : g_state.world_map.chunks) {
+        const Point& coord = chunk_pair.first;
+        ImGui::Text("   Chunk (%d, %d)", coord.first, coord.second);
+    }
+    ImGui::End();
+}
+
 void render_ui() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
-    {
-        ImGui::Begin("Controls");
-        ImGui::Text("Arrows to move");
-        ImGui::Text("Pos: %.2f, %.2f", g_state.player.x, g_state.player.y);
-        ImGui::End();
+    ImGui::Begin("Controls");
+    ImGui::Text("Arrows to move");
+    ImGui::Text("Pos: %.2f, %.2f", g_state.player.x, g_state.player.y);
+    ImGui::End();
+    
+    debug_chunks();
+    
+    ImGui::Render();
+}
+void draw_tile(int tile_x, int tile_y, Tiles tile_type, float camX, float camY, float aspect, float zoom) {
+    float worldX = tile_x + TILE_SIZE * 0.5f;
+    float worldY = tile_y + TILE_SIZE * 0.5f;
+    float screenX = (worldX - camX) / (aspect / zoom);
+    float screenY = (worldY - camY) / (1.0f / zoom);
+
+    switch (tile_type) {
+        case Tiles::PLANET:
+            draw_disc(circleVbo, screenX, screenY, 0.3f * zoom, 0.0f, 0.5f, 1.0f, program, aspect);
+            break;
+        case Tiles::ASTEROID:
+            // Draw a couple of small circles to represent an asteroid
+            draw_disc(circleVbo, screenX, screenY, 0.1f * zoom, 0.5f, 0.5f, 0.5f, program, aspect);
+            break;
+        case Tiles::DANGEROUS:
+            // Color the entire tile red
+            screenX = (tile_x - camX) / (aspect / zoom);
+            screenY = (tile_y - camY) / (1.0f / zoom);
+            draw_square(squareVbo, screenX, screenY, TILE_SIZE * zoom, 1.0f, 0.0f, 0.0f, 0.3f, program, aspect);
+        
+            break;
+        default:
+            break;
     }
 
-    ImGui::Render();
+}
+void draw_map(float camX, float camY, float aspect, float zoom) {
+    auto active_chunks = g_state.world_map.get_active_chunks(
+        (int)(g_state.player.x),
+        (int)(g_state.player.y),
+        GRID_VIEW_RANGE
+    );
+    for (const auto& chunk_pair : active_chunks) {
+        const Point& chunk_coord = chunk_pair.first;
+        const Chunk& chunk = chunk_pair.second;
+        auto [i, j] = chunk_coord;
+        auto [world_chunk_x, world_chunk_y] = g_state.world_map.chunk_to_world(chunk_coord);
+        for (int x = 0; x < Chunk::SIZE; ++x) {
+            for (int y = 0; y < Chunk::SIZE; ++y) {
+                Tiles tile = chunk.get_tile(x, y);
+                // Render tile based on its type
+                // e.g., draw different shapes/colors for different tile types
+                draw_tile(world_chunk_x + x * TILE_SIZE, world_chunk_y + y * TILE_SIZE, tile, camX, camY, aspect, zoom);
+            }
+        }
+    }
+    
 }
 
 void render_game() {
@@ -235,8 +305,11 @@ void render_game() {
     float zoom = g_state.zoom.level;
 
     draw_grid(camX, camY, aspect, zoom);
-    draw_planets(camX, camY, aspect, zoom);
+    draw_map(camX, camY, aspect, zoom);
+    // draw_planets(camX, camY, aspect, zoom);
 
     // Draw Player
     draw_triangle(triangleVbo, 0.0f, 0.0f, 0.05f * zoom, g_state.player.angle, 1.0f, 1.0f, 1.0f, program, aspect);
+
+
 }
