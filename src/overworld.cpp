@@ -16,6 +16,78 @@ void overworld_loop() {
     render_game();
 }
 
+Chunk::Chunk() {
+    for (int x = 0; x < SIZE; ++x) {
+        for (int y = 0; y < SIZE; ++y) {
+            tiles[x][y] = Tiles::EMPTY;
+        }
+    }
+}
+Tiles Chunk::get_tile(int x, int y) const {
+    if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) {
+        return Tiles::EMPTY;
+    }
+    return tiles[x][y];
+}
+WorldMap::WorldMap() {
+    // Initial world generation can be done here if needed
+}
+Tiles WorldMap::get_tile_at(int x, int y) {
+    int chunk_x = x / Chunk::SIZE;
+    int chunk_y = y / Chunk::SIZE;
+    int local_x = x % Chunk::SIZE;
+    int local_y = y % Chunk::SIZE;
+
+    auto it = chunks.find({chunk_x, chunk_y});
+    if (it == chunks.end()) {
+        generate_chunk(chunk_x, chunk_y);
+        it = chunks.find({chunk_x, chunk_y});
+    }
+    return it->second.get_tile(local_x, local_y);
+}
+std::vector<Chunk> WorldMap::get_active_chunks(int center_x, int center_y, int range) {
+    std::vector<Chunk> active_chunks;
+    int start_chunk_x = (center_x - range) / Chunk::SIZE;
+    int end_chunk_x = (center_x + range) / Chunk::SIZE;
+    int start_chunk_y = (center_y - range) / Chunk::SIZE;
+    int end_chunk_y = (center_y + range) / Chunk::SIZE;
+
+    for (int cx = start_chunk_x; cx <= end_chunk_x; ++cx) {
+        for (int cy = start_chunk_y; cy <= end_chunk_y; ++cy) {
+            auto it = chunks.find({cx, cy});
+            if (it == chunks.end()) {
+                generate_chunk(cx, cy);
+                it = chunks.find({cx, cy});
+            }
+            active_chunks.push_back(it->second);
+        }
+    }
+    return active_chunks;
+}
+
+void WorldMap::generate_chunk(int chunk_x, int chunk_y) {
+    Chunk new_chunk;
+    // Simple random generation for demonstration
+    std::mt19937 rng(static_cast<unsigned int>(chunk_x * 73856093 ^ chunk_y * 19349663));
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+
+    for (int x = 0; x < Chunk::SIZE; ++x) {
+        for (int y = 0; y < Chunk::SIZE; ++y) {
+            float chance = dist(rng);
+            if (chance < 0.1f) {
+                new_chunk.tiles[x][y] = Tiles::ASTEROID;
+            } else if (chance < 0.2f) {
+                new_chunk.tiles[x][y] = Tiles::DANGEROUS;
+            } else {
+                new_chunk.tiles[x][y] = Tiles::EMPTY;
+            }
+        }
+    }
+    chunks[{chunk_x, chunk_y}] = new_chunk;
+}
+
+
+
 void handle_events() {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
