@@ -5,6 +5,7 @@
 #include <SDL_opengles2.h>
 #include <vector>
 #include "player.h"
+#include "battle.h"
 
 // Constants
 extern const float TILE_SIZE;
@@ -33,6 +34,7 @@ struct GameState {
 };
 
 extern GameState g_state;
+extern BattleState g_battle;
 extern SDL_Window* window;
 extern GLuint program;
 extern GLuint triangleVbo;
@@ -43,5 +45,8 @@ void overworld_loop();
 void handle_events();
 void render_ui();
 void render_game();
+
+enum class GameMode;
+void set_mode(GameMode mode);
 
 #endif // OVERWORLD_H

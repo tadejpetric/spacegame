@@ -44,9 +44,18 @@ Some of them are visible on map, some are random encounters.
 # Card combat spec
 
 Each player has two rows of 6 spots.
-On any spot, a player can place one card. Each turn, every card attacks the card in front of it.
-If there is no card in front of it, attack the card towards the center.
-If you attack the two cards in the center, you attack the enemy spaceship directly.
+On any spot, a player can place one card. Each turn, every card attacks the card in front of it (starting from the cards at the edges and working towards the center).
+If there is no card in front of it, attack the nearest card towards the center.
+If there are no cards on the center two columns, you attack the enemy spaceship directly.
+First damage the card in the front row, then the back row. If you destroy a card, the damage spills
+to the card behind it. If you destroy all the cards in a column, the damage is not spilled to the next column (it is wasted).
+
+You and opponent both place cards at the same time. You only see the updated board after both players have placed their cards.
+At the end of the turn, battle phase begins. The attacks are simultaneous for both opponents,
+from the side of the board towards the center. First the side columns attack (both for you and opponent).
+The damage is computed after the attacks and cards are destroyed accordingly. Then the next column attacks, and so on. The order of battle is such: 123321
+
+
 
 There are different types of cards:
 - guns (high attack, low defence)

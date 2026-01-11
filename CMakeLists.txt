@@ -20,6 +20,7 @@ set(SOURCES
     src/geometry.cpp
     src/player.cpp
     src/overworld.cpp
+    src/battle.cpp
 )
 
 add_executable(spacegame ${SOURCES})

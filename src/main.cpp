@@ -3,29 +3,30 @@
 #include <emscripten.h>
 #include <cmath>
 #include <vector>
-#include <iostream>
-#include <random>
 
 #include "imgui.h"
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl3.h"
 
 #include "overworld.h"
+#include "battle.h"
 
 enum class GameMode {
     OVERWORLD,
     BATTLE
 };
 
+GameState g_state;
+BattleState g_battle;
+GameMode g_mode = GameMode::OVERWORLD;
+
 GameMode get_mode() {
-    return GameMode::OVERWORLD;
+    return g_mode;
 }
 
-// Constants
-const float TILE_SIZE = 1.0f;
-const int GRID_VIEW_RANGE = 20;
-
-GameState g_state;
+void set_mode(GameMode mode) {
+    g_mode = mode;
+}
 
 // Global variables
 SDL_Window* window;
@@ -65,7 +66,7 @@ void main_loop() {
             overworld_loop();
             break;
         case GameMode::BATTLE:
-            // battle_loop();
+            battle_loop();
             break;
     }
 

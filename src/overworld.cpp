@@ -7,6 +7,9 @@
 #include "imgui_impl_opengl3.h"
 #include "geometry.h"
 
+const float TILE_SIZE = 1.0f;
+const int GRID_VIEW_RANGE = 20;
+
 void overworld_loop() {
     handle_events();
     render_ui();
@@ -26,21 +29,35 @@ void handle_events() {
                 g_state.keys[event.key.keysym.scancode] = true;
 
             // Discrete tile movement
+            bool moved = false;
             if (event.key.keysym.scancode == SDL_SCANCODE_UP) {
                 g_state.player.y += TILE_SIZE;
                 g_state.player.angle = M_PI / 2.0f;
+                moved = true;
             }
             if (event.key.keysym.scancode == SDL_SCANCODE_DOWN) {
                 g_state.player.y -= TILE_SIZE;
                 g_state.player.angle = -M_PI / 2.0f;
+                moved = true;
             }
             if (event.key.keysym.scancode == SDL_SCANCODE_LEFT) {
                 g_state.player.x -= TILE_SIZE;
                 g_state.player.angle = M_PI;
+                moved = true;
             }
             if (event.key.keysym.scancode == SDL_SCANCODE_RIGHT) {
                 g_state.player.x += TILE_SIZE;
                 g_state.player.angle = 0.0f;
+                moved = true;
+            }
+
+            if (moved) {
+                // Not a fan of this
+                static std::mt19937 battle_rng(time(0));
+                std::uniform_int_distribution<int> dist(1, 6);
+                if (dist(battle_rng) == 1) {
+                    start_random_battle();
+                }
             }
 
             // Zoom controls
