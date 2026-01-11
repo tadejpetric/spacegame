@@ -8,13 +8,9 @@
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl3.h"
 
+#include "states.hpp"
 #include "overworld.h"
 #include "battle.h"
-
-enum class GameMode {
-    OVERWORLD,
-    BATTLE
-};
 
 GameState g_state;
 BattleState g_battle;
