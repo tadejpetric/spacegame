@@ -3,6 +3,8 @@
 
 #include <string>
 #include <vector>
+#include <optional>
+#include <functional>
 
 enum class CardType {
     SHIELD,
@@ -10,34 +12,58 @@ enum class CardType {
     DRONE
 };
 
+enum class BattleSide {
+    PLAYER,
+    OPPONENT
+};
+
+enum class CardKind {
+    NORMAL,
+    SPECIAL,
+    IMMEDIATE,
+    FIELD_EFFECT
+};
+
+struct CardState {
+    int times_used = 0;
+    int cooldown = 0;
+    bool skip_this_turn = false;
+};
+
+using CardEffect = std::function<void(struct BattleState&, BattleSide, int row, int col)>;
+
 struct Card {
     std::string name;
     int hp;
     int max_hp;
     int dmg;
+    int base_dmg;
     CardType type;
+    CardKind kind = CardKind::NORMAL;
+    CardEffect effect;
+    std::optional<std::string> effect_description;
+    CardState state;
+};
+
+struct SideState {
+    int hp = 10000;
+    double damage_multiplier = 1.0;
+    std::vector<Card> deck;
+    std::vector<Card> hand;
+    std::vector<Card> field[2][6];
+    std::vector<Card> immediate_queue;
+    int ship_last_damage = 0;
+    int slot_last_damage[2][6] = {};
 };
 
 struct BattleState {
-    int player_hp = 10000;
-    int opponent_hp = 10000;
-    
-    std::vector<Card> player_deck;
-    std::vector<Card> player_hand;
-    std::vector<Card> player_field[2][6]; // [row][col]
-    
-    std::vector<Card> opponent_deck;
-    std::vector<Card> opponent_hand;
-    std::vector<Card> opponent_field[2][6];
+    SideState player;
+    SideState opponent;
 
     bool is_player_turn = true;
     bool battle_animating = false;
+    bool skip_attack_phase = false;
     int selected_card_hand_idx = -1;
-
-    int player_ship_last_damage = 0;
-    int opponent_ship_last_damage = 0;
-    int player_slot_last_damage[2][6] = {};
-    int opponent_slot_last_damage[2][6] = {};
 
     // Animation state
     int anim_step_index = -1;
@@ -45,6 +71,9 @@ struct BattleState {
     bool anim_damage_applied = false;
     bool anim_initial_wait = false;
 };
+
+SideState& get_side_state(BattleState& state, BattleSide side);
+const SideState& get_side_state(const BattleState& state, BattleSide side);
 
 void battle_loop();
 void init_battle(BattleState& state);
