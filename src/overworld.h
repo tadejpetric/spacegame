@@ -6,6 +6,7 @@
 #include <vector>
 #include "player.h"
 #include "battle.h"
+#include "states.hpp"
 
 // Constants
 extern const float TILE_SIZE;
@@ -45,8 +46,5 @@ void overworld_loop();
 void handle_events();
 void render_ui();
 void render_game();
-
-enum class GameMode;
-void set_mode(GameMode mode);
 
 #endif // OVERWORLD_H
