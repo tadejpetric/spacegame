@@ -13,6 +13,7 @@ cmake --build build
 
 # Copy artifacts to root
 cp build/index.html build/index.js build/index.wasm .
+cp favicon.ico build/favicon.ico
 
 # Start server
-python -m http.server
+python3 -m http.server
