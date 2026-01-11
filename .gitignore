@@ -5,3 +5,5 @@ index.data
 build/
 .vscode/
 external/
+.cache
+.clangd

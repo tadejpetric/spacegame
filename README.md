@@ -39,3 +39,19 @@ You also encounter
 - ...
 
 Some of them are visible on map, some are random encounters.
+
+
+# Card combat spec
+
+Each player has two rows of 6 spots.
+On any spot, a player can place one card. Each turn, every card attacks the card in front of it.
+If there is no card in front of it, attack the card towards the center.
+If you attack the two cards in the center, you attack the enemy spaceship directly.
+
+There are different types of cards:
+- guns (high attack, low defence)
+- shields (low attack, high defence)
+- drones (balanced)
+- support (healing, buffs, etc.)
+- Field effect cards (always activate at the start of the game, no need to draw them)
+- active cards (Can activate at any point during your turn without placing it, consumes your card)

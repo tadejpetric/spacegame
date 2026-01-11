@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 project(spacegame)
 
+# Force Emscripten compilers if not already set
+if(EMSCRIPTEN)
+    set(CMAKE_C_COMPILER "emcc")
+    set(CMAKE_CXX_COMPILER "em++")
+endif()
+
 set(CMAKE_CXX_STANDARD 23)
 
 # ImGui library
