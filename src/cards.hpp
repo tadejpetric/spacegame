@@ -3,6 +3,7 @@
 #include "battle.h"
 
 #include <array>
+#include <random>
 #include <string_view>
 #include <vector>
 
@@ -24,7 +25,7 @@ inline Card MECHANIC{
     320,
     80,
     80,
-    130,
+    500,
     CardType::UTILITY,
     CardKind::SPECIAL,
     [](BattleState& st, BattleSide side, int, int) {
@@ -40,7 +41,7 @@ inline Card BOMBARD{
     220,
     150,
     150,
-    200,
+    800,
     CardType::TURRET,
     CardKind::SPECIAL,
     [](BattleState& st, BattleSide side, int, int) {
@@ -54,9 +55,9 @@ inline Card ALTERNATOR{
     "Alternator",
     240,
     240,
-    220,
-    220,
-    180,
+    400,
+    400,
+    800,
     CardType::TURRET,
     CardKind::SPECIAL,
     [](BattleState& st, BattleSide side, int row, int col) {
@@ -75,7 +76,7 @@ inline Card OVERHEAT{
     260,
     180,
     180,
-    160,
+    300,
     CardType::DRONE,
     CardKind::SPECIAL,
     [](BattleState& st, BattleSide side, int row, int col) {
@@ -94,7 +95,7 @@ inline Card GREED{
     0,
     0,
     0,
-    90,
+    130,
     CardType::UTILITY,
     CardKind::IMMEDIATE,
     [](BattleState& st, BattleSide side, int, int) {
@@ -145,7 +146,7 @@ inline Card BATTLE_DRILLS{
     0,
     0,
     0,
-    250,
+    2000,
     CardType::TURRET,
     CardKind::FIELD_EFFECT,
     [](BattleState& st, BattleSide side, int, int) {
@@ -160,7 +161,7 @@ inline Card REINFORCED_HULL{
     0,
     0,
     0,
-    180,
+    1000,
     CardType::SHIELD,
     CardKind::FIELD_EFFECT,
     [](BattleState& st, BattleSide side, int, int) {
@@ -175,7 +176,7 @@ inline Card NANO_SURGE{
     0,
     0,
     0,
-    140,
+    1000,
     CardType::UTILITY,
     CardKind::IMMEDIATE,
     [](BattleState& st, BattleSide side, int, int) {
@@ -192,11 +193,12 @@ inline Card DAMPENING_FIELD{
     0,
     0,
     0,
-    160,
+    1500,
     CardType::UTILITY,
     CardKind::FIELD_EFFECT,
     [](BattleState& st, BattleSide side, int, int) {
-        get_side_state(st, side).damage_multiplier *= 0.85;
+        // Reduce incoming damage by lowering the opponent's damage multiplier
+        get_side_state(st, opposite_side(side)).damage_multiplier *= 0.85;
     },
     "Reduce incoming damage taken by 15%",
     {}
@@ -220,20 +222,14 @@ inline const std::array<const Card*, 14> ALL = {
 };
 
 inline const std::vector<std::pair<const Card*, int>> DEFAULT_DECKLIST = {
-    {&SHIELD, 4},
-    {&TURRET, 4},
+    {&SHIELD, 3},
+    {&TURRET, 3},
     {&DRONE, 4},
-    {&MECHANIC, 2},
-    {&BOMBARD, 2},
-    {&ALTERNATOR, 2},
-    {&OVERHEAT, 2},
-    {&GREED, 2},
-    {&BOMB, 2},
+    {&MECHANIC, 1},
+    {&GREED, 1},
+    {&BOMB, 1},
     {&CEASEFIRE, 1},
-    {&BATTLE_DRILLS, 1},
-    {&REINFORCED_HULL, 1},
-    {&NANO_SURGE, 2},
-    {&DAMPENING_FIELD, 1},
+    {&NANO_SURGE, 1},
 };
 
 inline const std::array<const Card*, 14>& all() {
@@ -249,6 +245,23 @@ inline const Card* find_by_name(std::string_view name) {
 
 inline const std::vector<std::pair<const Card*, int>>& default_decklist() {
     return DEFAULT_DECKLIST;
+}
+
+inline std::vector<Card> generate_deck_with_cost(int cost_limit) {
+    std::vector<Card> deck;
+    if (cost_limit <= 0 || ALL.empty()) return deck;
+
+    static thread_local std::mt19937 rng{std::random_device{}()};
+    std::uniform_int_distribution<size_t> dist(0, ALL.size() - 1);
+
+    int total_cost = 0;
+    while (total_cost <= cost_limit) {
+        const Card* drawn = ALL[dist(rng)];
+        if (!drawn) continue;
+        deck.push_back(*drawn);
+        total_cost += drawn->cost;
+    }
+    return deck;
 }
 
 } // namespace cards

@@ -66,9 +66,13 @@ struct BattleState {
     SideState opponent;
 
     bool is_player_turn = true;
+    int difficulty = 1;
     bool battle_animating = false;
     bool skip_attack_phase = false;
     int selected_card_hand_idx = -1;
+    std::vector<Card>* player_deck_ref = nullptr;
+    std::optional<Card> reward_card;
+    bool reward_added = false;
 
     // Animation state
     int anim_step_index = -1;
@@ -88,7 +92,7 @@ void deal_damage_to_ship(SideState& side, int dmg);
 void heal_ship(SideState& side, int amount);
 
 void battle_loop();
-void init_battle(BattleState& state);
-void start_random_battle();
+void init_battle(BattleState& state, std::vector<Card>& player_deck, int difficulty);
+void start_random_battle(std::vector<Card>& player_deck, int difficulty);
 
 #endif

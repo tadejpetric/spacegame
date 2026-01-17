@@ -1,9 +1,27 @@
 #include "player.h"
+#include "cards.hpp"
 #include <cmath>
 
-void update_player(Player& player, const bool* keys) {
-    // Tile-based movement is handled via SDL_KEYDOWN events in main_loop
-    // for discrete steps, so this function can remain for continuous logic
-    // if needed, or we move logic to main_loop.
-    // However, the user wants "I press up, the player moves one tile up".
+Player::Player() {
+    // Default deck uses the predefined decklist
+    for (const auto& entry : cards::default_decklist()) {
+        const Card* card = entry.first;
+        int copies = entry.second;
+        if (!card || copies <= 0) continue;
+        for (int i = 0; i < copies; ++i) {
+            deck.push_back(*card);
+        }
+    }
+}
+
+void ensure_default_player_deck(Player& player) {
+    if (!player.deck.empty()) return;
+    for (const auto& entry : cards::default_decklist()) {
+        const Card* card = entry.first;
+        int copies = entry.second;
+        if (!card || copies <= 0) continue;
+        for (int i = 0; i < copies; ++i) {
+            player.deck.push_back(*card);
+        }
+    }
 }

@@ -11,6 +11,7 @@ const float TILE_SIZE = 1.0f;
 const int GRID_VIEW_RANGE = 20;
 
 void overworld_loop() {
+    //ensure_default_player_deck(g_state.player);
 
     handle_events();
     render_ui();
@@ -127,9 +128,10 @@ void handle_events() {
             if (moved) {
                 // Not a fan of this
                 static std::mt19937 battle_rng(time(0));
-                std::uniform_int_distribution<int> dist(1, 100);
+                std::uniform_int_distribution<int> dist(1, 50);
+                g_state.player.difficulty += 20;
                 if (dist(battle_rng) == 1) {
-                    start_random_battle();
+                    start_random_battle(g_state.player.deck, g_state.player.difficulty);
                 }
             }
 
@@ -148,7 +150,6 @@ void handle_events() {
                 g_state.keys[event.key.keysym.scancode] = false;
         }
     }
-    update_player(g_state.player, g_state.keys);
 }
 
 void draw_grid(float camX, float camY, float aspect, float zoom) {
@@ -235,6 +236,18 @@ void render_ui() {
     ImGui::Begin("Controls");
     ImGui::Text("Arrows to move");
     ImGui::Text("Pos: %.2f, %.2f", g_state.player.x, g_state.player.y);
+    ImGui::End();
+
+    ImGui::Begin("Player Status");
+    ImGui::Text("Difficulty: %d", g_state.player.difficulty);
+    ImGui::Separator();
+    ImGui::Text("Deck (%zu cards):", g_state.player.deck.size());
+    if (ImGui::BeginChild("DeckList", ImVec2(0, 150), true)) {
+        for (const auto& card : g_state.player.deck) {
+            ImGui::TextUnformatted(card.name.c_str());
+        }
+    }
+    ImGui::EndChild();
     ImGui::End();
     
     debug_chunks();

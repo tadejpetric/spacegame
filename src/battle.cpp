@@ -29,6 +29,39 @@ void shuffle_deck(std::vector<Card>& deck) {
     std::shuffle(deck.begin(), deck.end(), battle_rng());
 }
 
+static bool side_has_play_resources(const SideState& side) {
+    if (!side.hand.empty()) return true;
+    if (!side.deck.empty()) return true;
+    for (int r = 0; r < 2; ++r) {
+        for (int c = 0; c < 6; ++c) {
+            if (side.field[r][c][0].hp > 0) return true;
+        }
+    }
+    return false;
+}
+
+static bool is_stalemate(const BattleState& st) {
+    return !side_has_play_resources(st.player) && !side_has_play_resources(st.opponent);
+}
+
+static std::optional<Card> pick_reward_card(int difficulty) {
+    std::vector<const Card*> candidates;
+    for (const Card* card : cards::all()) {
+        if (card && card->cost < difficulty) {
+            candidates.push_back(card);
+        }
+    }
+    if (candidates.empty()) return std::nullopt;
+
+    std::sort(candidates.begin(), candidates.end(), [](const Card* a, const Card* b) {
+        return a->cost > b->cost;
+    });
+    if (candidates.size() > 10) candidates.resize(10);
+
+    std::uniform_int_distribution<size_t> dist(0, candidates.size() - 1);
+    return *candidates[dist(battle_rng())];
+}
+
 SideState& get_side_state(BattleState& state, BattleSide side) {
     return (side == BattleSide::PLAYER) ? state.player : state.opponent;
 }
@@ -794,10 +827,36 @@ static void render_battle_bolts(double now) {
 static void render_battle_outcome_window() {
     if (g_battle.player.hp > 0 && g_battle.opponent.hp > 0) return;
 
+    bool player_won = g_battle.player.hp > 0 && g_battle.opponent.hp <= 0;
+    if (player_won && !g_battle.reward_added) {
+        if (!g_battle.reward_card) {
+            g_battle.reward_card = pick_reward_card(g_battle.difficulty);
+        }
+        if (g_battle.reward_card) {
+            g_battle.player.deck.push_back(*g_battle.reward_card);
+            if (g_battle.player_deck_ref) {
+                g_battle.player_deck_ref->push_back(*g_battle.reward_card);
+            }
+            append_log(std::string("Reward gained: ") + g_battle.reward_card->name);
+        }
+        g_battle.reward_added = true;
+    }
+
     ImGui::SetNextWindowPos(ImVec2(g_state.screen_width / 2.0f - 100.0f, g_state.screen_height / 2.0f - 50.0f), ImGuiCond_Always);
     ImGui::Begin("Battle Over", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
     if (g_battle.player.hp <= 0) ImGui::Text("DEFEAT...");
-    else ImGui::Text("VICTORY!");
+    else {
+        ImGui::Text("VICTORY!");
+        if (g_battle.reward_card) {
+            const Card& c = *g_battle.reward_card;
+            ImGui::Separator();
+            ImGui::Text("Reward: %s", c.name.c_str());
+            ImGui::Text("Cost: %d | HP: %d | DMG: %d", c.cost, c.max_hp, c.base_dmg);
+            if (c.effect_description) {
+                ImGui::TextWrapped("Effect: %s", c.effect_description->c_str());
+            }
+        }
+    }
 
     if (ImGui::Button("Back to Overworld", ImVec2(200, 50))) {
         set_mode(GameMode::OVERWORLD);
@@ -858,17 +917,26 @@ static void initial_draw(std::vector<Card>& deck, std::vector<Card>& hand) {
     }
 }
 
-void init_battle(BattleState& state) {
+void init_battle(BattleState& state, std::vector<Card>& player_deck, int difficulty) {
     state.player = SideState{};
     state.opponent = SideState{};
     state.action_log.clear();
+    state.reward_card.reset();
+    state.reward_added = false;
+    state.player_deck_ref = &player_deck;
+    state.difficulty = difficulty;
     append_log("Battle started");
 
     clear_side_field(state.player);
     clear_side_field(state.opponent);
 
-    fill_deck(state.player.deck);
-    fill_deck(state.opponent.deck);
+    // Player uses their own deck (assumed non-empty and pre-assigned)
+    state.player.deck = player_deck;
+    shuffle_deck(state.player.deck);
+
+    int opponent_cost_limit = std::max(1, difficulty);
+    state.opponent.deck = cards::generate_deck_with_cost(opponent_cost_limit);
+    shuffle_deck(state.opponent.deck);
     apply_field_effect_cards(state, BattleSide::PLAYER);
     apply_field_effect_cards(state, BattleSide::OPPONENT);
 
@@ -894,14 +962,20 @@ void init_battle(BattleState& state) {
     reset_damage_tracking(state);
 }
 
-void start_random_battle() {
-    init_battle(g_battle);
+void start_random_battle(std::vector<Card>& player_deck, int difficulty) {
+    init_battle(g_battle, player_deck, difficulty);
     set_mode(GameMode::BATTLE);
 }
 
 void battle_loop() {
     const double now = ImGui::GetTime();
     if (!process_battle_events()) return;
+
+    if (is_stalemate(g_battle)) {
+        append_log("Stalemate detected: ending battle.");
+        set_mode(GameMode::OVERWORLD);
+        return;
+    }
 
     begin_battle_frame();
 
