@@ -70,28 +70,28 @@ inline Card SHIELD{
     "Shield", 500, 500, 50, 50, 80, CardType::SHIELD, CardKind::NORMAL, {}, std::nullopt, {}
 };
 inline Card SHIELD_MK2{
-    "Shield Mk2", 900, 900, 80, 80, 180, CardType::SHIELD, CardKind::NORMAL, {}, std::nullopt, {}
+    "Shield Mk2", 900, 900, 80, 80, 300, CardType::SHIELD, CardKind::NORMAL, {}, std::nullopt, {}
 };
 inline Card SHIELD_MK3{
-    "Shield Mk3", 1400, 1400, 120, 120, 300, CardType::SHIELD, CardKind::NORMAL, {}, std::nullopt, {}
+    "Shield Mk3", 1400, 1400, 120, 120, 600, CardType::SHIELD, CardKind::NORMAL, {}, std::nullopt, {}
 };
 inline Card TURRET{
-    "Turret", 200, 200, 200, 200, 130, CardType::TURRET, CardKind::NORMAL, {}, std::nullopt, {}
+    "Turret", 200, 200, 200, 200, 100, CardType::TURRET, CardKind::NORMAL, {}, std::nullopt, {}
 };
 inline Card TURRET_MK2{
-    "Turret Mk2", 260, 260, 320, 320, 260, CardType::TURRET, CardKind::NORMAL, {}, std::nullopt, {}
+    "Turret Mk2", 260, 260, 320, 320, 340, CardType::TURRET, CardKind::NORMAL, {}, std::nullopt, {}
 };
 inline Card TURRET_MK3{
-    "Turret Mk3", 320, 320, 480, 480, 420, CardType::TURRET, CardKind::NORMAL, {}, std::nullopt, {}
+    "Turret Mk3", 320, 320, 480, 480, 550, CardType::TURRET, CardKind::NORMAL, {}, std::nullopt, {}
 };
 inline Card DRONE{
     "Drone", 300, 300, 100, 100, 50, CardType::DRONE, CardKind::NORMAL, {}, std::nullopt, {}
 };
 inline Card DRONE_MK2{
-    "Drone Mk2", 450, 450, 170, 170, 120, CardType::DRONE, CardKind::NORMAL, {}, std::nullopt, {}
+    "Drone Mk2", 450, 450, 170, 170, 270, CardType::DRONE, CardKind::NORMAL, {}, std::nullopt, {}
 };
 inline Card DRONE_MK3{
-    "Drone Mk3", 620, 620, 240, 240, 220, CardType::DRONE, CardKind::NORMAL, {}, std::nullopt, {}
+    "Drone Mk3", 620, 620, 240, 240, 430, CardType::DRONE, CardKind::NORMAL, {}, std::nullopt, {}
 };
 inline Card MECHANIC{
     "Mechanic",
@@ -131,7 +131,7 @@ inline Card ALTERNATOR{
     240,
     400,
     400,
-    800,
+    350,
     CardType::TURRET,
     CardKind::SPECIAL,
     [](BattleState& st, BattleSide side, int row, int col) {
@@ -325,9 +325,9 @@ inline Card BATTLE_DRILLS{
     CardType::TURRET,
     CardKind::FIELD_EFFECT,
     [](BattleState& st, BattleSide side, int, int) {
-        get_side_state(st, side).damage_multiplier *= 2.0;
+        get_side_state(st, side).damage_multiplier *= 1.5;
     },
-    "Double your cards' damage",
+    "Increases your cards' damage by 50% (mult)",
     {}
 };
 inline Card REINFORCED_HULL{
@@ -380,8 +380,8 @@ inline Card DAMPENING_FIELD{
 };
 inline Card FRAGILE_LENS{
     "Fragile Lens",
-    250,
-    250,
+    50,
+    50,
     40,
     40,
     300,
@@ -389,15 +389,15 @@ inline Card FRAGILE_LENS{
     CardKind::SPECIAL,
     [](BattleState& st, BattleSide side, int, int) {
         SideState& self = get_side_state(st, side);
-        self.damage_multiplier *= 1.1;
+        self.damage_multiplier *= 1.2;
     },
     "Each turn on the field, increase your damage multiplier by 10%",
     {}
 };
 inline Card BLURRED_LENS{
     "Blurred Lens",
-    250,
-    250,
+    50,
+    50,
     40,
     40,
     320,
@@ -405,7 +405,7 @@ inline Card BLURRED_LENS{
     CardKind::SPECIAL,
     [](BattleState& st, BattleSide side, int, int) {
         SideState& enemy = get_side_state(st, opposite_side(side));
-        enemy.damage_multiplier *= 0.9;
+        enemy.damage_multiplier *= 0.8;
     },
     "Each turn on the field, reduce the opponent's damage multiplier by 10%",
     {}

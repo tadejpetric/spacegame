@@ -44,22 +44,29 @@ static bool is_stalemate(const BattleState& st) {
     return !side_has_play_resources(st.player) && !side_has_play_resources(st.opponent);
 }
 
-static std::optional<Card> pick_reward_card(int difficulty) {
+static std::vector<Card> pick_reward_cards(int difficulty, int count) {
     std::vector<const Card*> candidates;
     for (const Card* card : cards::all()) {
         if (card && card->cost < difficulty) {
             candidates.push_back(card);
         }
     }
-    if (candidates.empty()) return std::nullopt;
+    if (candidates.empty()) return {};
 
     std::sort(candidates.begin(), candidates.end(), [](const Card* a, const Card* b) {
         return a->cost > b->cost;
     });
     if (candidates.size() > 10) candidates.resize(10);
 
-    std::uniform_int_distribution<size_t> dist(0, candidates.size() - 1);
-    return *candidates[dist(battle_rng())];
+    std::shuffle(candidates.begin(), candidates.end(), battle_rng());
+    count = std::min<int>(count, candidates.size());
+
+    std::vector<Card> rewards;
+    rewards.reserve(count);
+    for (int i = 0; i < count; ++i) {
+        rewards.push_back(*candidates[i]);
+    }
+    return rewards;
 }
 
 SideState& get_side_state(BattleState& state, BattleSide side) {
@@ -839,18 +846,11 @@ static void render_battle_outcome_window() {
     if (g_battle.player.hp > 0 && g_battle.opponent.hp > 0) return;
 
     bool player_won = g_battle.player.hp > 0 && g_battle.opponent.hp <= 0;
-    if (player_won && !g_battle.reward_added) {
-        if (!g_battle.reward_card) {
-            g_battle.reward_card = pick_reward_card(g_battle.difficulty);
+    if (player_won && !g_battle.reward_added && g_battle.reward_options.empty()) {
+        g_battle.reward_options = pick_reward_cards(g_battle.difficulty, 3);
+        if (g_battle.reward_options.empty()) {
+            g_battle.reward_added = true;
         }
-        if (g_battle.reward_card) {
-            g_battle.player.deck.push_back(*g_battle.reward_card);
-            if (g_battle.player_deck_ref) {
-                g_battle.player_deck_ref->push_back(*g_battle.reward_card);
-            }
-            append_log(std::string("Reward gained: ") + g_battle.reward_card->name);
-        }
-        g_battle.reward_added = true;
     }
 
     ImGui::SetNextWindowPos(ImVec2(g_state.screen_width / 2.0f - 100.0f, g_state.screen_height / 2.0f - 50.0f), ImGuiCond_Always);
@@ -858,7 +858,32 @@ static void render_battle_outcome_window() {
     if (g_battle.player.hp <= 0) ImGui::Text("DEFEAT...");
     else {
         ImGui::Text("VICTORY!");
-        if (g_battle.reward_card) {
+        if (!g_battle.reward_added) {
+            ImGui::Separator();
+            ImGui::Text("Choose your reward:");
+            if (g_battle.reward_options.empty()) {
+                ImGui::Text("No rewards available.");
+            } else {
+                for (size_t i = 0; i < g_battle.reward_options.size(); ++i) {
+                    const Card& c = g_battle.reward_options[i];
+                    ImGui::Separator();
+                    ImGui::Text("%s", c.name.c_str());
+                    ImGui::Text("Cost: %d | HP: %d | DMG: %d", c.cost, c.max_hp, c.base_dmg);
+                    if (c.effect_description) {
+                        ImGui::TextWrapped("Effect: %s", c.effect_description->c_str());
+                    }
+                    if (ImGui::Button(("Choose##reward" + std::to_string(i)).c_str(), ImVec2(200, 35))) {
+                        g_battle.reward_card = c;
+                        g_battle.player.deck.push_back(c);
+                        if (g_battle.player_deck_ref) {
+                            g_battle.player_deck_ref->push_back(c);
+                        }
+                        append_log(std::string("Reward gained: ") + c.name);
+                        g_battle.reward_added = true;
+                    }
+                }
+            }
+        } else if (g_battle.reward_card) {
             const Card& c = *g_battle.reward_card;
             ImGui::Separator();
             ImGui::Text("Reward: %s", c.name.c_str());
@@ -933,6 +958,7 @@ void init_battle(BattleState& state, std::vector<Card>& player_deck, int difficu
     state.opponent = SideState{};
     state.action_log.clear();
     state.reward_card.reset();
+    state.reward_options.clear();
     state.reward_added = false;
     state.player_deck_ref = &player_deck;
     state.difficulty = difficulty;

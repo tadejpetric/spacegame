@@ -72,6 +72,7 @@ struct BattleState {
     int selected_card_hand_idx = -1;
     std::vector<Card>* player_deck_ref = nullptr;
     std::optional<Card> reward_card;
+    std::vector<Card> reward_options;
     bool reward_added = false;
 
     // Animation state
