@@ -72,6 +72,9 @@ void main_loop() {
 }
 
 int main() {
+    // Ensure player deck is constructed at startup
+    g_state.player = Player();
+
     if (SDL_Init(SDL_INIT_VIDEO) < 0) return -1;
 
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
