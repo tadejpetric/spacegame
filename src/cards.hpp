@@ -553,22 +553,15 @@ inline const std::array ALL{
 };
 
 inline const std::vector<std::pair<const Card*, int>> DEFAULT_DECKLIST{
-    {&SHIELD, 3},
-    {&SHIELD_MK2, 1},
-    {&TURRET, 3},
-    {&TURRET_MK2, 1},
-    {&DRONE, 4},
-    {&DRONE_MK2, 1},
+    {&SHIELD, 1},
+    {&TURRET, 2},
+    {&DRONE, 1},
     {&MECHANIC, 1},
     {&OVERHEAT_MK2, 1},
     {&GREED, 1},
-    {&GREED_MK2, 1},
     {&BOMB, 1},
     {&BOMB_MK2, 1},
-    {&CEASEFIRE, 1},
     {&FRAGILE_LENS, 1},
-    {&NANO_SURGE, 1},
-    {&MASOCHIST, 1},
     {&GLASS_CANNON, 1},
 };
 
