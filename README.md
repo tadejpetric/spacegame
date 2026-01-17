@@ -62,3 +62,34 @@ There are different types of cards:
 - support (healing, buffs, etc.)
 - Field effect cards (always activate at the start of the game, no need to draw them)
 - active cards (Can activate at any point during your turn without placing it, consumes your card)
+
+## Card list (names + effects)
+
+- Shield: Basic shield.
+- Shield Mk2 / Mk3: Same as Shield with higher HP and damage at higher cost.
+- Turret / Turret Mk2 / Turret Mk3: Higher damage and sturdier upgrades at higher cost.
+- Drone / Drone Mk2 / Drone Mk3: Balanced unit; Mk2/3 raise HP and damage at higher cost.
+- Mechanic: Heals all friendly units by 100 HP.
+- Bombard: Deal 100 damage to all enemy units.
+- Alternator: Fires every other turn (skips alternate turns).
+- Overheat: Self-destructs after attacking 3 times.
+- Overheat Mk2: After 3 attacks, destroys itself and deals 1000 damage to a random enemy card.
+- Overheat Mk3: After 3 attacks, destroys itself and deals 1000 damage to all enemy cards.
+- Greed: Draw 2 more cards.
+- Greed Mk2: Draw 3 more cards.
+- Greed Mk3: Draw 4 more cards.
+- Bomb: Deal 100 to all enemy units and 50 to the enemy ship.
+- Bomb Mk2: Deal 500 to all enemy units and 100 to all friendly units.
+- Ceasefire: End the attack phase for this turn.
+- Battle Drills (Field Effect): Double your cards' damage.
+- Reinforced Hull (Field Effect): Increase ship HP by 1000.
+- Nano Surge: Heal ship by 300 and all friendly units by 50.
+- Dampening Field (Field Effect): Reduce incoming damage taken by 15% (enemy damage multiplier ×0.85).
+- Fragile Lens: Each turn on the field, increase your damage multiplier by 10%.
+- Blurred Lens: Each turn on the field, reduce the opponent's damage multiplier by 10%.
+- Piercing Beam: Each attack also deals 100 damage to the enemy ship.
+- Guardian Angel: Heals a random friendly unit by 120 each turn it's on the field.
+- Reactor Overdrive (Field Effect): Boost your damage by 25% but deal 400 damage to your ship.
+- Lone Wolf: Damage 6000 minus 2000 per other friendly card; HP 1000 minus 333 per friendly card (min 1).
+- Masochist: When it takes damage, heal your ship by 500.
+- Glass Cannon: Immediate — triples both sides' damage multipliers.

@@ -214,6 +214,16 @@ static int effective_damage(const Card& card, const SideState& side) {
     return static_cast<int>(std::lround(card.dmg * side.damage_multiplier));
 }
 
+void card_took_damage_trigger(SideState& side, int row, int col, int amount) {
+    if (amount <= 0) return;
+    if (row < 0 || row >= 2 || col < 0 || col >= 6) return;
+    if (side.field[row][col].empty()) return;
+    Card& card = side.field[row][col][0];
+    if (card.name == "Masochist") {
+        heal_ship(side, 500);
+    }
+}
+
 static void deal_damage_to_slot(SideState& side, int row, int col, int dmg) {
     if (dmg <= 0) return;
     Card& target = side.field[row][col][0];
@@ -221,6 +231,7 @@ static void deal_damage_to_slot(SideState& side, int row, int col, int dmg) {
     int applied = std::min(dmg, target.hp);
     target.hp -= applied;
     side.slot_last_damage[row][col] += applied;
+    card_took_damage_trigger(side, row, col, applied);
 }
 
 void deal_damage_to_ship(SideState& side, int dmg) {

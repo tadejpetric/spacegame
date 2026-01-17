@@ -90,6 +90,7 @@ void deal_damage_to_all_slots(SideState& side, int amount);
 void heal_all_slots(SideState& side, int amount);
 void deal_damage_to_ship(SideState& side, int dmg);
 void heal_ship(SideState& side, int amount);
+void card_took_damage_trigger(SideState& side, int row, int col, int amount);
 
 void battle_loop();
 void init_battle(BattleState& state, std::vector<Card>& player_deck, int difficulty);
