@@ -9,7 +9,9 @@
 enum class CardType {
     SHIELD,
     TURRET,
-    DRONE
+    DRONE,
+    UTILITY,
+    DEFAULT
 };
 
 enum class BattleSide {
@@ -38,6 +40,7 @@ struct Card {
     int max_hp;
     int dmg;
     int base_dmg;
+    int cost = 0;
     CardType type;
     CardKind kind = CardKind::NORMAL;
     CardEffect effect;
@@ -53,7 +56,9 @@ struct SideState {
     std::vector<Card> field[2][6];
     std::vector<Card> immediate_queue;
     int ship_last_damage = 0;
+    int ship_last_heal = 0;
     int slot_last_damage[2][6] = {};
+    int slot_last_heal[2][6] = {};
 };
 
 struct BattleState {
@@ -70,10 +75,17 @@ struct BattleState {
     double anim_step_start_time = 0.0;
     bool anim_damage_applied = false;
     bool anim_initial_wait = false;
+
+    std::vector<std::string> action_log;
 };
 
 SideState& get_side_state(BattleState& state, BattleSide side);
 const SideState& get_side_state(const BattleState& state, BattleSide side);
+BattleSide opposite_side(BattleSide side);
+void deal_damage_to_all_slots(SideState& side, int amount);
+void heal_all_slots(SideState& side, int amount);
+void deal_damage_to_ship(SideState& side, int dmg);
+void heal_ship(SideState& side, int amount);
 
 void battle_loop();
 void init_battle(BattleState& state);
