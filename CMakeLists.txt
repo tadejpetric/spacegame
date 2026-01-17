@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 project(spacegame)
-
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Force Emscripten compilers if not already set
 if(EMSCRIPTEN)
     set(CMAKE_C_COMPILER "emcc")
@@ -14,6 +14,19 @@ file(GLOB IMGUI_SOURCES "external/imgui/imgui*.cpp")
 add_library(imgui STATIC ${IMGUI_SOURCES})
 target_include_directories(imgui PUBLIC external/imgui)
 
+
+# FastNoiseLight library
+include(FetchContent)
+
+# 1. Download FastNoiseLite from GitHub
+FetchContent_Declare(
+  fastnoiselite
+  GIT_REPOSITORY https://github.com/Auburn/FastNoiseLite.git
+  GIT_TAG        master # Or a specific version/commit hash
+)
+
+FetchContent_MakeAvailable(fastnoiselite)
+
 # Source files
 set(SOURCES
     src/main.cpp
@@ -26,6 +39,8 @@ set(SOURCES
 add_executable(spacegame ${SOURCES})
 target_include_directories(spacegame PRIVATE src)
 target_link_libraries(spacegame PRIVATE imgui)
+# target_link_libraries(spacegame PRIVATE fastnoiselight)
+target_include_directories(spacegame PRIVATE "${fastnoiselite_SOURCE_DIR}/Cpp")
 
 # Emscripten specific settings
 if(EMSCRIPTEN)
